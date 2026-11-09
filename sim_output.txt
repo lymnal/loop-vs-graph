@@ -1,0 +1,62 @@
+================================================================================
+ASSUMPTIONS  12 work units | 1500 tok/step | p_silent=0.03 p_caught=0.06 (fresh ctx)
+             graph: coverage=0.90 guard=0.70 retries=2 | rot: silent x1.18 per 30k tok
+================================================================================
+
+[1] TOKEN COST vs TASK LENGTH  (input tokens the model must read)
+    steps        loop raw      graph raw    ratio    loop, cached*
+    4              17,000          7,050     2.4x            6,875
+    8              58,000         15,450     3.8x           17,875
+    12            123,000         23,850     5.2x           31,275
+    20            325,000         40,650     8.0x           65,275
+    30            712,500         61,650    11.6x          121,275
+    50          1,937,500        103,650    18.7x          278,275
+    80          4,900,000        166,650    29.4x          626,275
+    * price-weighted equivalent tokens, cache read ~0.1x / cache write ~1.25x.
+      Caching divides the CONSTANT. The n^2 GROWTH survives it untouched.
+
+[2] RELIABILITY vs TASK LENGTH   (end-to-end correct, 20000 trials)
+    n     loop                       graph                      winner
+    2      93.4% ###################.  88.1% ##################.. LOOP 
+    3      90.4% ##################..  86.9% #################... LOOP 
+    5      84.4% #################...  85.4% #################... tie
+    8      76.2% ###############.....  82.7% #################... GRAPH
+    12     65.7% #############.......  79.1% ################.... GRAPH
+    20     48.8% ##########..........  72.8% ###############..... GRAPH
+    30     32.2% ######..............  66.1% #############....... GRAPH
+    45     16.0% ###.................  56.6% ###########......... GRAPH
+    ^ THE CROSSOVER. Silent errors compound multiplicatively in a loop and the
+      growing context makes them likelier. A graph's per-node rate never grows.
+
+[3] WHERE THE CROSSOVER SITS  (task length at which graph overtakes loop)
+    coverage \ guard g=0.30  g=0.50  g=0.70  g=0.90
+    0.70            n>=25   n>=19   n>=14   n>=11  
+    0.80            n>=17   n>=12   n>=9    n>=7   
+    0.90            n>=9    n>=6    n>=5    n>=4   
+    0.95            n>=5    n>=4    n>=3    n>=2   
+    0.99            n>=2    n>=2    n>=2    n>=2   
+    ^ read this as: 'how good must my authored paths + guards be, and how long is
+      the task, before the graph is worth building?'  Top-left = stay in the loop.
+
+[4] LATENCY  (serial round-trips on the critical path)
+    loop : 10.6 steps, strictly serial -- step i is unknown until i-1 returns
+    graph: width 1 -> depth 13  =  0.8x faster
+    graph: width 2 -> depth  7  =  1.5x faster
+    graph: width 3 -> depth  5  =  2.1x faster
+    graph: width 5 -> depth  4  =  2.7x faster
+    graph: width 8 -> depth  3  =  3.5x faster
+
+[5] TRAJECTORY VARIANCE  (distinct execution paths, 20000 runs)
+    loop :  17053 distinct paths -- control flow is SAMPLED  => a distribution => eval it
+    graph:      4 distinct paths -- control flow is CODE     => a value        => test it
+
+[6] SENSITIVITY  (which assumption actually moves the decision?)
+    knob       low      high     (loop - graph) advantage, pts
+    retries    0        4          +36  ->    -14      swing  50
+    n          4        30          +1  ->    -33      swing  34
+    p_silent   0.01     0.08        +2  ->    -31      swing  33
+    coverage   0.7      1.0         +3  ->    -22      swing  25
+    guard      0.3      0.95        -3  ->    -21      swing  18
+    rot        1.0      0.7        -12  ->    -16      swing   4
+    baseline (loop - graph) = -13 pts
+

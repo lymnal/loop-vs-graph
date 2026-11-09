@@ -1,0 +1,44 @@
+A) Reproduce the script's own ranking at n=12 (should match the run):
+   p_silent      +2 ->    -31   swing   33
+   coverage      +3 ->    -22   swing   25
+   guard         -3 ->    -21   swing   18
+   n             +1 ->    -33   swing   34
+   rot          -12 ->    -16   swing    4
+   retries      +36 ->    -14   swing   50
+
+B) Same knobs, but at several task lengths n (swing in pts):
+   knob      n=5     n=8     n=12    n=20    n=30    n=45    
+   p_silent     20      28      33      30      21       1   
+   coverage     28      27      25      25      22      19   
+   guard         9      14      18      29      38      49   
+   rot           1       2       4       8      12      14   
+   retries      29      42      50      59      61      56   
+
+C) Context rot pushed much harder than the script tries (rot=0.5 => p_silent doubles per 30k tokens):
+   n=12  rot=1.0    -12 | rot=0.5    -20 | rot=0.35    -24   (swing 1.0->0.5 = 8, 1.0->0.35 = 12)
+   n=20  rot=1.0    -20 | rot=0.5    -36 | rot=0.35    -45   (swing 1.0->0.5 = 16, 1.0->0.35 = 25)
+   n=30  rot=1.0    -27 | rot=0.5    -50 | rot=0.35    -60   (swing 1.0->0.5 = 23, 1.0->0.35 = 32)
+   n=45  rot=1.0    -33 | rot=0.5    -54 | rot=0.35    -56   (swing 1.0->0.5 = 21, 1.0->0.35 = 23)
+
+D) What context length does the loop actually reach? (mean steps at finish -> ctx tokens, and p_silent there)
+   n=5   mean loop steps   5.0 -> ctx ~9,447 tok -> p_silent 0.0316 (fresh 0.03)
+   n=12  mean loop steps  10.6 -> ctx ~17,937 tok -> p_silent 0.0331 (fresh 0.03)
+   n=20  mean loop steps  15.7 -> ctx ~25,501 tok -> p_silent 0.0344 (fresh 0.03)
+   n=30  mean loop steps  20.0 -> ctx ~32,036 tok -> p_silent 0.0357 (fresh 0.03)
+   n=45  mean loop steps  23.8 -> ctx ~37,704 tok -> p_silent 0.0368 (fresh 0.03)
+
+E) Normalised check: each knob moved by the SAME relative amount (x0.5 and x2 of default, clipped to valid range) at n=12:
+   p_silent  half     -3  double    -27   swing   23   ({'p_silent': 0.015} / {'p_silent': 0.06})
+   p_caught  half    -14  double    -14   swing    0   ({'p_caught': 0.03} / {'p_caught': 0.12})
+   coverage  half    -18  double     -5   swing   13   ({'coverage': 0.95} / {'coverage': 0.8})
+   guard     half    -19  double     -6   swing   13   ({'guard': 0.85} / {'guard': 0.4})
+   rot       half    -13  double    -16   swing    3   ({'rot': 0.925} / {'rot': 0.7})
+   retries   half     -8  double    -14   swing    6   ({'retries': 1} / {'retries': 4})
+
+F) Silent-vs-caught: hold total error rate fixed at 9%, vary the VISIBLE share (n=12):
+   p_silent=0.00 p_caught=0.09  loop 100.0%  graph  89.1%  (loop-graph   +11)
+   p_silent=0.01 p_caught=0.08  loop  87.3%  graph  86.0%  (loop-graph    +1)
+   p_silent=0.03 p_caught=0.06  loop  65.7%  graph  79.5%  (loop-graph   -14)
+   p_silent=0.05 p_caught=0.04  loop  50.9%  graph  73.7%  (loop-graph   -23)
+   p_silent=0.07 p_caught=0.02  loop  39.1%  graph  68.8%  (loop-graph   -30)
+   p_silent=0.09 p_caught=0.00  loop  29.8%  graph  63.3%  (loop-graph   -34)
